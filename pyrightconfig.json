@@ -1,0 +1,7 @@
+{
+    // configuration file for pylance & pyright linting and typechecking
+    // https://microsoft.github.io/pyright/#/configuration
+    //
+    // Example setting:
+    // "reportMissingImports": "error"
+}
