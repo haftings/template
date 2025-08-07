@@ -3,8 +3,4 @@ pyright[nodejs] # open source version of pylance with command line support
 shellcheck-py
 # and these are used for the repo proper
 ipython
-numpy
-scipy
-pandas
-matplotlib
 requests
