@@ -1,0 +1,28 @@
+#! /bin/bash
+
+# help
+if (($#)); then
+    echo 'Build or re-build the python venv for this repo'
+    printf '\nusage: %q [--help]\n' "${BASH_SOURCE[0]}"
+    exit 1
+fi
+
+# set root directory
+root="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+if [[ -z "$root" ]]; then
+    printf '%s\n' 'could not determine project root directory' >&2
+    exit 1
+fi
+
+# check prerequisites
+"$root/check-prerequisites" || exit 1
+
+# set up venv
+if [[ -e "$root/requirements.txt" ]]; then
+    python3 -m venv --clear "$root/venv" || exit 1
+    . "$root/venv/bin/activate" || exit 1
+    pip --require-virtualenv install --upgrade pip || exit 1
+    if [[ -e "$root/requirements.txt" ]]; then
+        pip --require-virtualenv install -r "$root/requirements.txt" || exit 1
+    fi
+fi

@@ -1,0 +1,18 @@
+#! /bin/bash
+
+# check for the correct version of Python
+if ! which python3 >/dev/null; then
+    echo 'python3 not found' >&2
+    exit 1
+fi
+version="$(python3 --version)"
+if ! echo "$version" | \
+    # EDIT HERE to grep for the allowed version(s) of python
+    grep -qiE '^Python 3\.(1[0-9]|[2-9][0-9]|[1-9][0-9]{2,})\b'
+then
+    # EDIT HERE to tell the user which version(s) of python is required
+    echo 'Python >= 3.10 required' >&2
+    exit 1
+fi
+
+# EDIT HERE to add additional prerequisite checks

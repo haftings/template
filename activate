@@ -1,0 +1,89 @@
+#! /bin/bash
+
+# help
+if (($#)); then
+    echo 'Activate the environment for this repo'
+    printf '\nusage: . %q [--help]\n' "${BASH_SOURCE[0]}"
+    return 1
+fi
+
+# ensure script is sourced
+if ! (return 0 2>/dev/null); then
+	echo 'The activate script has no effect unless it is sourced'
+    printf 'usage: . %q [--help]\n' "${BASH_SOURCE[0]}" >&2
+	exit 1
+fi
+
+# set root directory
+DOCTEST_EXAMPLE__prev="$DOCTEST_EXAMPLE"
+DOCTEST_EXAMPLE="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+if [[ -z "$DOCTEST_EXAMPLE" ]]; then
+    printf '%s\n' 'could not determine project root directory' >&2
+    return 1
+fi
+export DOCTEST_EXAMPLE
+
+# check prerequisites
+"$DOCTEST_EXAMPLE/check-prerequisites" || return 1
+
+# define a function to do the hard work of basic string editing in bash
+_DOCTEST_EXAMPLE__edit_path() {
+
+    # name arguments
+    local name="$1"
+    local subpath="$2"
+
+    # declare locals
+    local added=false p='' old_p='' new_p='' new_path=''
+    local -a orig_paths=()
+
+    # decide on paths to add or remove
+    if [[ -n "$DOCTEST_EXAMPLE" ]]; then
+        new_p="$DOCTEST_EXAMPLE/$subpath"
+    fi
+    if [[ -n "$DOCTEST_EXAMPLE__prev" ]]; then
+        old_p="$DOCTEST_EXAMPLE__prev/$subpath"
+    fi
+
+    # read PATH
+    IFS=: read -r -a orig_paths <<< "${!name}"
+
+    # edit paths
+    for p in "${orig_paths[@]}"; do
+
+        # replace old path
+        if [[ -n "$old_p" ]] && [[ "$p" == "$old_p" ]]; then
+            new_path+="$new_p:"
+            added=true
+
+        # keep unrelated paths intact
+        else
+            new_path+="$p:"
+        fi
+
+    done
+
+    # prepend the new path, if it hasn't already replace an old one
+    if ! $added; then
+        new_path="$new_p:$new_path"
+    fi
+
+    # export new path
+    export "$name=${new_path%:}"
+}
+
+# edit PATH and PYTHONPATH accordingly
+_DOCTEST_EXAMPLE__edit_path PATH bin
+_DOCTEST_EXAMPLE__edit_path PYTHONPATH pylib
+
+# activate venv
+if [[ -e "$DOCTEST_EXAMPLE/venv/bin/activate" ]]; then
+    . "$DOCTEST_EXAMPLE/venv/bin/activate"
+fi
+
+# clean up
+unset DOCTEST_EXAMPLE__prev
+unset -f _DOCTEST_EXAMPLE__edit_path
+
+# success!
+printf 'activated doctest_example with root path %q\n' "$DOCTEST_EXAMPLE"

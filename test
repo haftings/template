@@ -1,0 +1,79 @@
+#! /bin/bash
+
+# help
+for a in "$@"; do
+    if [[ "$a" == '-h' ]] || [[ "$a" == "--help" ]]; then
+        echo 'Test this module (usually after running build first)'
+        printf '\nusage: %q [--help] [<args-for-doctest>]\n' "${BASH_SOURCE[0]}"
+        exit 1
+    fi
+done
+
+# set root directory
+root="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+if [[ -z "$root" ]]; then
+    printf '%s\n' 'could not determine project root directory' >&2
+    exit 1
+fi
+cd -- "$root" || exit 1
+
+# check pre-requisites
+. ./check-prerequisites || exit 1
+
+# activate repo environment
+. ./activate || exit 1
+
+# keep track of errors
+errors=false
+
+# find and test python and shell files
+# thanks to BashFAQ: https://mywiki.wooledge.org/BashFAQ/020
+shell_paths=()
+python_paths=()
+while IFS= read -r -d '' path; do
+    if \
+        # ending in .py counts
+        [[ "$path" = *.py ]] || \
+        # and so does having python in your shebang
+        head -n1 -- "$path" | grep -qE '^#!.*\bpython3?\b'
+    then
+        python_paths+=("$path")
+    elif \
+        # ending in common shell extensions counts
+        [[ "$path" =~ \.(bash|[cz]?sh|tcsh|dash)$ ]] || \
+        # and so does having a shell in your shebang
+        head -n1 -- "$path" | grep -qE '^#!.*\b([db]a|[cz]|tc)?sh\b'
+    then
+        shell_paths+=("$path")
+    fi
+done < <(find . \( -name .git -o -name venv \) -prune -o -type f -print0)
+
+# run doctest and pyright on python files
+if ((${#python_paths[@]})); then
+    echo ------------------------------------------------------------------------------
+    printf 'Running doctest on %s file(s):\n' "${#python_paths[@]}"
+    printf '  %q\n' "${python_paths[@]}"
+    python3 -m doctest "$@" "${python_paths[@]}" || errors=true
+    echo ------------------------------------------------------------------------------
+    printf 'Running pyright on those same %s file(s):\n' "${#python_paths[@]}"
+    pyright "${python_paths[@]}" || errors=true
+fi
+
+# run shellcheck on shell files
+if ((${#shell_paths[@]})); then
+    echo ------------------------------------------------------------------------------
+    printf 'Running shellcheck on %s file(s):\n' "${#shell_paths[@]}"
+    printf '  %q\n' "${shell_paths[@]}"
+    shellcheck -x -- "${shell_paths[@]}" || errors=true
+fi
+
+# share results
+
+echo ------------------------------------------------------------------------------
+if $errors; then
+    echo 'Tests complete, some test(s) failed! (see above)'
+    exit 1
+else
+    echo 'Tests complete, all tests passed.'
+    exit 0
+fi

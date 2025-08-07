@@ -1,0 +1,16 @@
+# configuration file for shellcheck (shell script linting)
+# https://github.com/koalaman/shellcheck/wiki
+
+# You can Ignore an individual line in a script file like:
+#    # shellcheck disable=SC1010 # check disabled for demonstration
+#    echo it is done
+
+# Or ignore for the whole file like:
+#    #! /bin/bash
+#    # shellcheck disable=SC1010 # explanation of why it's disabled here
+#    # ...
+#    echo it is done
+
+# Or add global shellcheck directives for the repo to *this* file like:
+#    disable=SC1010
+
