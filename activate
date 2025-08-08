@@ -1,28 +1,55 @@
 #! /bin/bash
 
+# function to determine repo name
+___get_repo_name() {
+    local name
+    # infer that name should be the script file's directory's basename
+    name="$(basename "$(dirname "$(realpath "${BASH_SOURCE[0]}")")")"
+    # remove any -version or .version, and replace unsafe chars with _
+    name="$(printf %s "$name" | sed -e 's/[-.].*//g; s/[^A-Za-z0-9_]/_/g')"
+    # make it uppercase
+    name="$(printf %s "$name" | tr '[:lower:]' '[:upper:]')"
+    # make sure the name has at least some non-underscore characters
+    if [[ -z "${name//_}" ]]; then
+        name=REPO
+    fi
+    printf '%s\n' "$name"
+}
+___repo="$(___get_repo_name)"
+unset -f ___get_repo_name
+
+
 # help
 for arg in "$@"; do
     if [[ "$arg" == '--help' ]]; then
-        echo 'Activate the environment for this repo'
+        printf 'Activate the environment for %s\n' "$___repo"
         printf '\nusage: . %q [--help]\n' "${BASH_SOURCE[0]}"
-        return 1
+        unset ___repo
+        # shellcheck disable=SC2317 # exit from either source or execution
+        return 1 2>/dev/null || exit 1
     fi
 done
 
 # set root directory
-TEMPLATE__prev="$TEMPLATE"
-TEMPLATE="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
-if [[ -z "$TEMPLATE" ]]; then
+___prev_path="${!___repo}"
+declare "$___repo=$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+if [[ -z "${!___repo}" ]]; then
     printf '%s\n' 'could not determine project root directory' >&2
-    return 1
+    unset ___repo
+    # shellcheck disable=SC2317 # exit from either source or execution
+    return 1 2>/dev/null || exit 1
 fi
-export TEMPLATE
+export "${___repo?}"
 
 # check prerequisites
-"$TEMPLATE/check-prerequisites" || return 1
+if ! "${!___repo}/check-prerequisites"; then
+    unset ___repo
+    # shellcheck disable=SC2317 # exit from either source or execution
+    return 1 2>/dev/null || exit 1
+fi
 
 # define a function to do the hard work of basic string editing in bash
-_TEMPLATE__edit_path() {
+___edit_path() {
 
     # name arguments
     local name="$1"
@@ -33,11 +60,11 @@ _TEMPLATE__edit_path() {
     local -a orig_paths=()
 
     # decide on paths to add or remove
-    if [[ -n "$TEMPLATE" ]]; then
-        new_p="$TEMPLATE/$subpath"
+    if [[ -n "${!___repo}" ]]; then
+        new_p="${!___repo}/$subpath"
     fi
-    if [[ -n "$TEMPLATE__prev" ]]; then
-        old_p="$TEMPLATE__prev/$subpath"
+    if [[ -n "$___prev_path" ]]; then
+        old_p="$___prev_path/$subpath"
     fi
 
     # read PATH
@@ -68,28 +95,33 @@ _TEMPLATE__edit_path() {
 }
 
 # edit PATH, PYTHONPATH, VIRTUAL_ENV accordingly
-if [[ -d "$TEMPLATE/venv/bin" ]]; then
-    _TEMPLATE__edit_path PATH venv/bin
-    export VIRTUAL_ENV="$TEMPLATE/venv"
+if [[ -d "${!___repo}/venv/bin" ]]; then
+    ___edit_path PATH venv/bin
+    export VIRTUAL_ENV="${!___repo}/venv"
 fi
-_TEMPLATE__edit_path PATH bin
-_TEMPLATE__edit_path PYTHONPATH pylib
+___edit_path PATH bin
+___edit_path PYTHONPATH pylib
 
 # clean up
-unset TEMPLATE__prev
-unset -f _TEMPLATE__edit_path
+unset ___prev_path
+unset -f ___edit_path
 hash -r 2>/dev/null  # ensures PATH is re-searched, since we changed it
 
 # if given a command, run it
 if (($#)); then
+    unset ___repo
     "$@"
 # if not source, run a sub-shell
 elif ! (return 0 2>/dev/null); then
     if [[ -t 1 ]]; then
         printf "running in a bash sub-shell (because activate wasn't sourced)\n"
     fi
+    unset ___repo
     bash
 # if sourced and interactive, then announce that we're activated
-elif [[ -t 1 ]]; then
-    printf 'activated TEMPLATE=%q\n' "$TEMPLATE"
+else
+    if [[ -t 1 ]]; then
+        printf 'activated %s=%q\n' "$___repo" "${!___repo}"
+    fi
+    unset ___repo
 fi
