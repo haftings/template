@@ -76,14 +76,14 @@ _DOCTEST_EXAMPLE__edit_path() {
 _DOCTEST_EXAMPLE__edit_path PATH bin
 _DOCTEST_EXAMPLE__edit_path PYTHONPATH pylib
 
-# activate venv
-if [[ -e "$DOCTEST_EXAMPLE/venv/bin/activate" ]]; then
-    . "$DOCTEST_EXAMPLE/venv/bin/activate"
-fi
-
 # clean up
 unset DOCTEST_EXAMPLE__prev
 unset -f _DOCTEST_EXAMPLE__edit_path
+
+# activate venv
+if [[ -e "$DOCTEST_EXAMPLE/venv/bin/activate" ]]; then
+    VIRTUAL_ENV_DISABLE_PROMPT=true . "$DOCTEST_EXAMPLE/venv/bin/activate"
+fi
 
 # success!
 printf 'activated doctest_example with root path %q\n' "$DOCTEST_EXAMPLE"
