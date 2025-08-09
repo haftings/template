@@ -1,5 +1,6 @@
 #! /bin/bash
 
+
 # function to determine repo name
 ___get_repo_name() {
     local name
@@ -19,7 +20,7 @@ ___repo="$(___get_repo_name)"
 unset -f ___get_repo_name
 
 
-# help
+# show help
 for arg in "$@"; do
     if [[ "$arg" == '--help' ]]; then
         printf 'Activate the environment for %s\n' "$___repo"
@@ -29,6 +30,7 @@ for arg in "$@"; do
         return 1 2>/dev/null || exit 1
     fi
 done
+
 
 # set root directory
 ___prev_path="${!___repo}"
@@ -41,12 +43,14 @@ if [[ -z "${!___repo}" ]]; then
 fi
 export "${___repo?}"
 
+
 # check prerequisites
 if ! "${!___repo}/check-prerequisites"; then
     unset ___repo
     # shellcheck disable=SC2317 # exit from either source or execution
     return 1 2>/dev/null || exit 1
 fi
+
 
 # define a function to do the hard work of basic string editing in bash
 ___edit_path() {
@@ -94,6 +98,7 @@ ___edit_path() {
     export "$name=${new_path%:}"
 }
 
+
 # edit PATH, PYTHONPATH, VIRTUAL_ENV accordingly
 if [[ -d "${!___repo}/venv/bin" ]]; then
     ___edit_path PATH venv/bin
@@ -102,10 +107,12 @@ fi
 ___edit_path PATH bin
 ___edit_path PYTHONPATH pylib
 
+
 # clean up
 unset ___prev_path
 unset -f ___edit_path
 hash -r 2>/dev/null  # ensures PATH is re-searched, since we changed it
+
 
 # if given a command, run it
 if (($#)); then
@@ -114,7 +121,8 @@ if (($#)); then
 # if not source, run a sub-shell
 elif ! (return 0 2>/dev/null); then
     if [[ -t 1 ]]; then
-        printf "running in a bash sub-shell (because activate wasn't sourced)\n"
+        printf 'activated %s=%q\n' "$___repo" "${!___repo}"
+        printf 'running in a bash sub-shell, exit to deactivate\n'
     fi
     unset ___repo
     bash
