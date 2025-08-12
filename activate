@@ -1,82 +1,96 @@
 #! /bin/bash
 
-# check to see if activate is being sourced
-(return 0 2>/dev/null) && ___activate_sourced=true || ___activate_sourced=false
-
-# run mostly inside function
+# define as a function to use local variables
 ___activate() {
 
-    local ___repo_name ___repo_path ___tmp_name ___tmp_path
+    local name path
     # get repository name
-    ___repo_path="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+    path="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
     # name is the basename w/o version, unsafe replaced with _, and upper-case
-    ___repo_name="$(
-        basename "$___repo_path" | sed -e 's/[-.].*//g; s/[^A-Za-z0-9_]/_/g' |
+    name="$(
+        basename "$path" | sed -e 's/[-.].*//g; s/[^A-Za-z0-9_]/_/g' |
         tr '[:lower:]' '[:upper:]'
     )"
     # make sure the repo name has at least some non-underscore characters
-    if [[ -z "${___repo_name//_}" ]]; then ___repo_name=REPO; fi
+    if [[ -z "${name//_}" ]]; then name=REPO; fi
 
     # show help
     for arg in "$@"; do if [[ "$arg" == '--help' ]]; then
-        printf 'Activate the environment for %s\n' "$___repo_name"
+        printf 'Activate the environment for %s\n' "$name"
         printf '\nusage: . %q [--help]\n' "${BASH_SOURCE[0]}"
         printf '\narguemnt:\n'
         printf '  --help  print this message and quit w/o activating\n'
-        printf '\nactions:\n'
-        printf '  - sets %s\n' "$___repo_name"
-        printf '  - adds $%s/bin and $%s/venv/bin to front of PATH\n' \
-            "$___repo_name" "$___repo_name"
-        printf '  - adds $%s/pylib to front of PYTHONPATH\n' "$___repo_name"
-        printf '  - sets VIRTUAL_ENV\n'
+        printf '\nactions taken:\n'
+        printf '  - set %s\n' "$name"
+        printf '  - add $%s/bin and $%s/venv/bin to front of PATH\n' \
+            "$name" "$name"
+        printf '  - add $%s/pylib to front of PYTHONPATH\n' "$name"
+        printf '  - set VIRTUAL_ENV\n'
         return 1
     fi; done
 
     # check prerequisites
-    if ! "${___repo_path?}/check-prerequisites"; then
+    if ! "${path?}/check-prerequisites"; then
         return 1
     fi
 
     # deactivate previous version
-    if [[ -n "${!___repo_name}" ]]; then
-        # source deactivate, while preserving ___repo_name and ___repo_path
-        #___tmp_name="$___repo_name" ___tmp_path="$___repo_path"
-        . "${___repo_path}/deactivate"
-        #___repo_name="$___tmp_name" ___repo_path="$___tmp_path"
+    if [[ -n "${!name}" ]]; then
+        # source deactivate, while preserving name and path
+        . "${path}/deactivate"
     fi
 
     # export <REPO_NAME>, PATH, PYTHONPATH, VIRTUAL_ENV
-    if [[ -d "${___repo_path?}/venv/bin" ]]; then
-        export PATH="${___repo_path?}/venv/bin:$PATH"
-        export VIRTUAL_ENV="${___repo_path?}/venv"
+    if [[ -d "${path?}/venv/bin" ]]; then
+        export PATH="${path?}/venv/bin:$PATH"
+        export VIRTUAL_ENV="${path?}/venv"
     fi
-    if ! export PYTHONPATH="${___repo_path?}/pylib:${PYTHONPATH?}" 2>/dev/null; then
-        export PYTHONPATH="${___repo_path?}/pylib"
+    if ! export PYTHONPATH="${path?}/pylib:${PYTHONPATH?}" 2>/dev/null; then
+        export PYTHONPATH="${path?}/pylib"
     fi
-    export "${___repo_name?}"="${___repo_path?}"
-    export PATH="${___repo_path?}/bin:${PATH?}"
+    export "${name?}"="${path?}"
+    export PATH="${path?}/bin:${PATH?}"
     hash -r 2>/dev/null  # ensures PATH is re-searched, since we changed it
 
-    # if given a command, run it
+    # tell the user that we're activated
+    if [[ -t 1 ]]; then
+        printf 'activated %s=%q\n' "$name" "${path?}"
+    fi
+}
+
+# sourced
+if (return 0 2>/dev/null); then
+    # activate...
+    if ___activate "$@"; then
+        unset -f ___activate
+    else
+        unset -f ___activate
+        return 1
+    fi
+    # ...and run any specified command
     if (($#)); then
         "$@"
         return $?
-    # if not source, run a sub-shell
-    elif ! $___activate_sourced; then
+    fi
+# directly run
+else
+    # activate...
+    if ___activate "$@"; then
+        unset -f ___activate
+    else
+        unset -f ___activate
+        exit 1
+    fi
+    # ...and run any specified command...
+    if (($#)); then
+        "$@"
+        exit $?
+    # ...or just a bash sub-shell
+    else
         if [[ -t 1 ]]; then
-            printf 'activated %s=%q\n' "$___repo_name" "${___repo_name?}"
             printf 'running in a bash sub-shell, exit to deactivate\n'
         fi
         bash
-        return $?
-    # if sourced and interactive, then announce that we're activated
-    elif [[ -t 1 ]]; then
-        printf 'activated %s=%q\n' "$___repo_name" "${___repo_path?}"
+        exit $?
     fi
-
-}
-___activate "$@"
-unset -f ___activate
-
-# TODO forward returncode
-# TODO discern between return and exit (for deactivate's use)
+fi

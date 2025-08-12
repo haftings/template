@@ -1,31 +1,37 @@
 #! /bin/bash
 
+# prevent inadvertent running without source
+if ! (return 0 2>/dev/null); then
+    printf 'usage: source %q\n' "$0" >&2
+    printf '%q: error: must be sourced, not run directly\n' "$0" >&2
+    exit 1
+fi
+
+# define as a function to use local variables
 ___deactivate() {
 
-    local ___repo_name ___repo_path ___name ___value
+    local name dir key _value
     # get repository name
-    ___repo_path="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+    dir="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
     # name is the basename w/o version, unsafe replaced with _, and upper-case
-    ___repo_name="$(
-        basename "$___repo_path" | sed -e 's/[-.].*//g; s/[^A-Za-z0-9_]/_/g' |
+    name="$(
+        basename "$dir" | sed -e 's/[-.].*//g; s/[^A-Za-z0-9_]/_/g' |
         tr '[:lower:]' '[:upper:]'
     )"
     # make sure the repo name has at least some non-underscore characters
-    if [[ -z "${___repo_name//_}" ]]; then ___repo_name=REPO; fi
+    if [[ -z "${name//_}" ]]; then name=REPO; fi
 
     # show help
     for arg in "$@"; do if [[ "$arg" == '--help' ]]; then
-        printf 'Deactivate the environment for %s\n' "$___repo_name"
+        printf 'Deactivate the environment for %s\n' "$name"
         printf '\nusage: . %q [--help]\n' "${BASH_SOURCE[0]}"
         printf '\narguemnt:\n'
         printf '  --help  print this message and quit w/o deactivating\n'
-        printf '\nactions:\n'
-        printf '  - removes $%s/bin and $%s/venv/bin from PATH\n' \
-            "$___repo_name" "$___repo_name"
-        printf '  - removes $%s/pylib from PYTHONPATH\n' "$___repo_name"
-        printf '  - unsets %s and %s_* variables\n' \
-            "$___repo_name"  "$___repo_name"
-        printf '  - unsets VIRTUAL_ENV from %s if applicable\n' "$___repo_name"
+        printf '\nactions taken:\n'
+        printf '  - remove $%s/bin and $%s/venv/bin from PATH\n' "$name" "$name"
+        printf '  - remove $%s/pylib from PYTHONPATH\n' "$name"
+        printf '  - unset %s and %s_* variables\n' "$name"  "$name"
+        printf '  - unset VIRTUAL_ENV from %s if applicable\n' "$name"
         return 1
     fi; done
 
@@ -40,31 +46,35 @@ ___deactivate() {
     }
 
     # remove from PATH, PYTHONPATH, and VIRTUAL_ENV
-    ___rm_path PATH "$___repo_path/bin"
-    ___rm_path PYTHONPATH "$___repo_path/pylib"
-    if [[ "$VIRTUAL_ENV" == "$___repo_path/venv" ]]; then
-        ___rm_path PATH "$___repo_path/venv/bin"
+    ___rm_path PATH "$dir/bin"
+    ___rm_path PYTHONPATH "$dir/pylib"
+    if [[ "$VIRTUAL_ENV" == "$dir/venv" ]]; then
+        ___rm_path PATH "$dir/venv/bin"
         unset VIRTUAL_ENV
     fi
     unset -f ___rm_path
     hash -r 2>/dev/null  # ensures PATH is re-searched, since we changed it
 
     # remove repo variables
-    while IFS='=' read -r -d '' ___name ___value; do
-        if [[ "$___name" == "$___repo_name"_* ]]; then
-            unset "$___name"
+    while IFS='=' read -r -d '' key ___value; do
+        if [[ "$key" == "$name"_* ]]; then
+            unset "$key"
         fi
     done < <(env -0)
 
     # tell the user what we did
     if [[ -t 1 ]]; then
-        printf 'deactivated %s=%q\n' "$___repo_name" "${!___repo_name}"
+        printf 'deactivated %s=%q\n' "$name" "${!name}"
     fi
-    unset "$___repo_name"
+    unset "$name"
 
 }
-___deactivate "$@"
-unset -f ___deactivate
 
-# TODO forward returncode
-# TODO discern between return and exit (from `. ./activate` vs `./activate`)
+# run and delete function, then return 0 or 1
+if ___deactivate "$@"; then
+    unset -f ___deactivate
+    return 0
+else
+    unset -f ___deactivate
+    return 1
+fi
